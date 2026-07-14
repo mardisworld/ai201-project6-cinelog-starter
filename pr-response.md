@@ -299,7 +299,259 @@ I couldn't type into the "editor" at all. So the commit history looks terrible, 
 
 Prompt:
 
+```
+I ran these two commands in the terminal: git log --oneline origin/main..HEAD and git rebase -i HEAD~13. This is supposed to help me edit the commits so that they make sense. I am unable to type into the editor. As you can see, I have many duplicates. I need to check that each commit name matches the file changes that are associated with it. These were the rules that were given to me:
+
+Change pick to reword to rename a commit message
+Change pick to squash or fixup to combine commits (if you have "fixed stuff" commits to fold in)
+Change pick to drop to remove a commit entirely
+Leave pick as-is to keep a commit unchanged
+IMPORTANT: There should be one commit per fix or feature.
+
+Prefix	When to use
+feat:	A new feature or endpoint
+fix:	A bug fix
+test:	Adding or updating tests
+docs:	Documentation changes only
+refactor:	Code restructuring with no behavior change
+chore:	Maintenance tasks (deps, config, etc.)
+Can you help?
+
+```
+
+1. Copilot ran these 4 commands:
+
+git status --short --branch
+
+git log --oneline --decorate origin/main..HEAD
+
+git branch --show-current && git rev-parse --short HEAD && git rev-parse --short origin/main
+
+test -d .git/rebase-merge && find .git/rebase-merge -maxdepth 1 -type f -print | sort || true
+
+And then output:
+
+There’s no active rebase, but pr-response.md has uncommitted edits, so I’m checking that diff before rewriting anything. I’ll preserve those edits in the final documentation commit.
+
+2. Copilot ran these 4 commands:
+
+git diff -- pr-response.md | sed -n '1,260p'
+
+git diff --stat origin/main..HEAD
+
+git diff --stat origin/main
+
+git diff --name-only origin/main
+
+And output:
+
+The branch has 13 commits over origin/main, and the final state touches 7 files. I’m going to inspect the actual final diffs per area now so the rewritten commits follow the repo rule: one logical code fix, feature, test, or docs change per commit.
+
+3. Copilot ran these 2 commands:
+
+git diff origin/main -- app.py routes/watchlist/watchlist.py services/watchlist_service.py models.py | sed -n '1,260p'
+
+git diff origin/main -- services/collection_service.py tests/test_collection.py | sed -n '1,260p'
+
+git diff origin/main -- services/collection_service.py tests/test_collection.py | sed -n '1,260p'
+
+
+Then output:
+
+The final code breaks into several logical changes, not just three. Based on the project rules, the clean history should separate code fixes/features from tests and docs rather than hiding everything in one large “watchlist” commit.
+
+I’m going to preserve your current uncommitted pr-response.md edits first, then rebuild the branch from origin/main by staging one logical change at a time. I’ll create a backup ref before moving the branch so there’s a recovery point.
+
+4. Copilot ran ran these 2 commands:
+
+git branch backup/feature-watchlist-v2-before-logical-cleanup-20260713 || true
+
+git diff -- pr-response.md > /tmp/cinelog-pr-response-before-cleanup.patch && wc -l /tmp/cinelog-pr-response-before-cleanup.patch
+
+Then output: Backup branch and a patch copy of your documentation edits are in place. Now I’m stashing the uncommitted doc edit, resetting the branch pointer to origin/main while keeping the final branch changes in the working tree, then restoring your doc edit.
+
+5. Copilot ran these 2 commands:
+
+git stash push -m "backup pr-response before logical commit cleanup" -- pr-response.md && git reset --mixed origin/main && git stash pop
+
+
+Then output:
+
+The stash pop was blocked because pr-response.md is currently an untracked final-branch file after resetting to origin/main; that’s recoverable, and the stash was kept. I’m going to commit the logical code/test changes first, then apply the saved doc patch into the docs commit.
+
+
+6. Copiot ran the following 2 commands:
+
+
+git status --short --branch
+
+git diff -- services/collection_service.py
+
+Then output:
+
+The first logical change is clean: it only replaces the deprecated collection lookup with db.session.get. I’m committing that as a fix: commit now.
+
+
+7. Copilot ran:
+
+git add services/collection_service.py && git commit -m "fix: use db.session.get for collection film lookup"
+
+Then output:
+
+First cleaned commit is done. Next I’m staging the watchlist implementation files only, leaving tests and docs for separate commits per the contribution rules.
+
+
+8. Copilot ran the following 2 commands:
+
+git diff -- app.py models.py routes/watchlist/watchlist.py services/watchlist_service.py | sed -n '1,260p'
+
+git status --short
+
+Then output:
+
+The implementation commit is app registration plus new watchlist model/route/service. I noticed trailing spaces in the new model blank lines, so I’m cleaning that small formatting issue before committing.
+
+Edited
+models.py +2 -2
+
+The model formatting cleanup is in. I’m running a quick diff check, then I’ll commit the feature implementation files only.
+
+9. Copilot ran the following 2 commands:
+
+git diff --check app.py models.py routes/watchlist/watchlist.py services/watchlist_service.py
+
+git status --short
+
+Then output:
+
+Implementation files are clean. I’m committing them as a single feat: commit for the watchlist feature, while keeping tests and documentation separate.
+
+10. Copilot ran the following command:
+
+git add app.py models.py routes/watchlist/watchlist.py services/watchlist_service.py && git commit -m "feat: add watchlist endpoints and service"
+
+Then output:
+
+Feature implementation is committed. The remaining code change is test coverage, so I’m reviewing that diff and then committing it as test:.
+
+11. Copilot ran the following 2 commands:
+
+git diff -- tests/test_collection.py | sed -n '1,220p'
+
+The test file passes and contains only test coverage changes. I’m committing that separately now.
+
+12. Copilot ran the following command:
+
+git add tests/test_collection.py && git commit -m "test: add watchlist service coverage"
+
+Then output:
+
+Tests are now a separate commit. The only remaining change is pr-response.md, and I’m applying your saved documentation cleanup patch before committing it as docs:.
+
+13. Copilot ran the following 2 commands:
+
+git apply --check /tmp/cinelog-pr-response-before-cleanup.patch
+
+git status --short
+
+Then output:
+
+The saved patch applies cleanly. I’m applying it now, then I’ll run the whitespace/conflict check on the documentation before committing.
+
+14. Copilot ran the following command:
+
+git apply /tmp/cinelog-pr-response-before-cleanup.patch && git diff --check -- pr-response.md
+
+Then output:
+
+The documentation cleanup patch is applied and passes git diff --check. I’m reviewing the start/end of the doc once so we don’t commit the accidental duplicated header again.
+
+15. Copilot ran the following command:
+
+git diff --stat -- pr-response.md
+
+The duplicate header is gone and the doc starts correctly. I’m reading the tail of the rebase section once more because the file continues past the first range.
+
+The docs now include your rebase notes and no duplicate top block. I’m committing this as the documentation-only commit.
+
+16. Copilot ran the following 4 commands:
+
+git log --oneline --decorate origin/main..HEAD
+
+git status --short --branch
+
+.venv/bin/python -m pytest tests/test_collection.py
+
+git diff --check origin/main..HEAD
+
+Then output:
+
+Validation passed: four commits, clean working tree, and tests pass. The branch now diverges from the pushed remote because the remote still has the old 13-commit history; that is expected after rewriting local history. I’m checking the exact local-vs-remote diff before any force push.
+
+17. Copilot ran the following 3 commands:
+
+git diff --stat origin/feature/watchlist-v2..HEAD
+
+git diff origin/feature/watchlist-v2..HEAD -- models.py | sed -n '1,120p'
+
+git diff origin/feature/watchlist-v2..HEAD -- pr-response.md | sed -n '1,220p'
+
+Then output:
+
+The cleaned commits now match the rules: fix: touches one service fix, feat: touches the watchlist implementation, test: touches only tests, and docs: touches only the PR response. To make GitHub show this cleaned history, the branch must be force-pushed with lease because the old remote history has to be replaced.
+
+18. Copilot asked: Q: Push the cleaned 4-commit history to origin/feature/watchlist-v2 with --force-with-lease?
+A: Yes, force-push with lease - Replace the messy remote commit history with the cleaned local history.
+
+Then output:
+
+I’ll force-push with lease now, which only updates the remote if it still points where we last fetched. After that I’ll verify GitHub’s tracking branch and clean up the temporary stash if it’s no longer needed.
+
+19. Copilot ran the following 5 commands:
+
+git push --force-with-lease origin feature/watchlist-v2
+
+git fetch origin && git status --short --branch
+
+git log --oneline --decorate origin/main..origin/feature/watchlist-v2
+
+.venv/bin/python -m pytest tests/test_collection.py
+
+git diff --check origin/main..HEAD
+
+Then output:
+
+The remote now shows the cleaned four-commit history and tests pass. I’m dropping the temporary stash that only held the already-committed PR response edit; I’ll leave the backup branch in place as a safety checkpoint.
+
+20.
+
+git stash drop stash@{0} && rm -f /tmp/cinelog-pr-response-before-cleanup.patch && git stash list --format='%gd %s' && git status --short --branch
+
+Then output:
+
+Done. I cleaned the branch history and pushed it to origin/feature/watchlist-v2 with --force-with-lease.
+
+The remote now has 4 logical commits, each matching the commit prefix rules:
+
+c6a2dee docs: document watchlist PR decisions
+b8fad66 test: add watchlist service coverage
+caca84c feat: add watchlist endpoints and service
+3ff4875 fix: use db.session.get for collection film lookup
+
+I also preserved your latest pr-response.md edits, removed the accidental duplicated header block, and dropped the temporary stash after confirming everything was committed.
+
+Validation passed:
+
+git status --short --branch: synced with origin/feature/watchlist-v2
+.venv/bin/python -m pytest tests/test_collection.py: 5 passed
+git diff --check origin/main..HEAD: clean
+I left a local backup branch in case you need the old history: backup/feature-watchlist-v2-before-logical-cleanup-20260713.
 
 
 ## PR Description
-<!-- Written at the end — feature overview, design decisions, manual testing steps -->
+
+This PR adds the watchlist feature to CineLog. Users can now save films they want to watch later, view their saved watchlist, and receive clear errors if they try to add a film that does not exist or a film that is already on their watchlist. I also cleaned up the watchlist service naming so it matches the existing collection service pattern: `add_to_watchlist()` now mirrors `add_to_collection()`.
+
+I made two intentional behavior decisions while working on this feature. First, watchlist entries now default to `public=False` because a watchlist can reveal personal intent, and it is safer to make sharing opt-in instead of exposing user data by default. Second, `get_watchlist()` now returns films by `date_added` descending, so the most recently saved films appear first. That matches how `get_collection()` already behaves and feels more useful for a list of things someone just decided they want to watch.
+
+I manually tested the watchlist flow by sending a POST request to add a film to a user's watchlist, then confirming that the film appeared when viewing that user's watchlist. I also tested the duplicate case by sending the same add request again and confirming that the API returned the expected already-in-watchlist error. For automated coverage, I added tests for the nonexistent-film case and for newest-first watchlist sorting, then verified the test file passes with `.venv/bin/python -m pytest tests/test_collection.py`.
