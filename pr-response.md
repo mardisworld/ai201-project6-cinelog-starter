@@ -37,13 +37,13 @@ Blueprints pull in the services — when app.py imports a route module, that mod
 
 2. I also encountered errors when running Flask.
 
-![alt text](<instance/images/flask error.png>)
+![alt text](images/1.flask_error.png)
 
 AI  helped me to resolve the errors so I could test the endpoints.
 
 3. When I moved to correct the test file, I received this error.
 
-![alt text](<instance/images/testing errros.png>)
+![alt text](images/2.testing_errors.png)
 
 Somehow the changes I had made to change add_to_watchlist() had been reverted to save_to_watchlist(). Claude helped me identify the error and fix them.
 
@@ -70,10 +70,9 @@ For class, class WatchlistEntry(db.Model):
 PR Reviewer wants to know why watchlists default to public=True. We don't have a documented decision on default visibility for user lists. He wants me to add a note to your PR description explaining my reasoning. He wants to make sure we're being intentional here, not just inheriting a default. If you think about it and think that public should=False, say so but document your decion-making. Just consider the question and decide which option is best, and explain your reasoning.
 ```
 
-I did not have a good answer, so I asked it to consider the question and provide its reasoning. I agreed with the its reasoning, so I changed the default watchlist model public=False and included its responses, unedited,here in this document. .
+I did not have a good answer, so I asked it to consider the question and provide its reasoning. I agreed with the its reasoning, so I changed the default watchlist model public=False and included its responses, unedited,here in this document.
 
-
-Watchlist entries should default to `public=False` (private). I changed the model default from `True` to `False`.
+5. Finally, I had a tremendous amount of trouble with the Git Rebase and cleanup. I didn't really have a choice but to use AI to help me, because the commands that I tried were not working. When I was supposed to clean up the commits, the editor it brought up wouldn't let me type. I had to let Copilot do most of the heavy lifting, with my supervision. 
 
 ## Comment 1 — Rename
 
@@ -85,11 +84,11 @@ As suggested by the PR reviewer, I changed the name of save_to_watchlist() to ad
 
 I submitted a post request with a film id in body and user id in url to add a film_id to user's watchlist.
 
-![alt text](instance/images/add_to_watchlist.png)
+***
 
 I then verified that it was in user's watchlist:
 
-![alt text](<instance/images/users watchlist.png>)
+![alt text](images/3.users_watchlist.png)
 
 
 ## Comment 2 — Deduplication
@@ -101,7 +100,7 @@ I added in an AlreadyInWatchlistError in watchlist_service.py, imported it in to
 
 I sent a post request to endpoint to add to user's watchlist, then sent again and received this error message back.
 
-![alt text](<instance/images/already in watchlist.png>)
+![alt text](images/4.already_in_watchlist.png)
 
 ## Comment 3 — Missing test
 **What I did:**
@@ -111,7 +110,8 @@ Added condition to existing text that if FilmNotFoundError was raised, the film 
 **How I verified:**
 
 I ran tests and verified that they are all passing.
-![alt text](<instance/images/tests passed.png>)
+
+![alt text](images/5.tests_passed.png)
 
 
 ## Comment 4 — Default visibility
@@ -286,7 +286,7 @@ git log --oneline --decorate -5
 
 This is what my Git commit history looked like before cleanup.
 
-![alt text](<instance/images/commit history before cleanup.png>)
+![alt text](images/6.commit_history_before_cleanup.png)
 
 When I ran the two commands given in the assignment,
 
@@ -523,7 +523,7 @@ Then output:
 
 The remote now shows the cleaned four-commit history and tests pass. I’m dropping the temporary stash that only held the already-committed PR response edit; I’ll leave the backup branch in place as a safety checkpoint.
 
-20.
+20. Copilot ran the following command:
 
 git stash drop stash@{0} && rm -f /tmp/cinelog-pr-response-before-cleanup.patch && git stash list --format='%gd %s' && git status --short --branch
 
@@ -546,6 +546,10 @@ git status --short --branch: synced with origin/feature/watchlist-v2
 .venv/bin/python -m pytest tests/test_collection.py: 5 passed
 git diff --check origin/main..HEAD: clean
 I left a local backup branch in case you need the old history: backup/feature-watchlist-v2-before-logical-cleanup-20260713.
+
+Commit History After Cleanup:
+
+![alt text](images/7.commit_history_after_cleanup.png)
 
 
 ## PR Description
