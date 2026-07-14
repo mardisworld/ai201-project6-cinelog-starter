@@ -559,3 +559,11 @@ This PR adds the watchlist feature to CineLog. Users can now save films they wan
 I made two intentional behavior decisions while working on this feature. First, watchlist entries now default to `public=False` because a watchlist can reveal personal intent, and it is safer to make sharing opt-in instead of exposing user data by default. Second, `get_watchlist()` now returns films by `date_added` descending, so the most recently saved films appear first. That matches how `get_collection()` already behaves and feels more useful for a list of things someone just decided they want to watch.
 
 I manually tested the watchlist flow by sending a POST request to add a film to a user's watchlist, then confirming that the film appeared when viewing that user's watchlist. I also tested the duplicate case by sending the same add request again and confirming that the API returned the expected already-in-watchlist error. For automated coverage, I added tests for the nonexistent-film case and for newest-first watchlist sorting, then verified the test file passes with `.venv/bin/python -m pytest tests/test_collection.py`.
+
+## Stretch Feature remove_from_watchlist()
+
+I added `remove_from_watchlist(user_id, film_id)` as a stretch feature in `watchlist_service.py`. The function looks up a user's watchlist entry for the given film, removes it from the database if it exists, commits the change, and returns `True` so callers can tell the removal succeeded. If the film is not in that user's watchlist, it raises `NotInWatchlistError`, matching the pattern used by `remove_from_collection()`.
+
+I also added a `DELETE /watchlist/<user_id>/remove` endpoint in `routes/watchlist/watchlist.py`. It accepts a JSON body with `film_id`, calls `remove_from_watchlist()`, returns a success message when the entry is removed, and returns a 404 error if the film is not in that user's watchlist.
+
+I also wrote `test_remove_from_watchlist_deletes_entry` in `tests/test_collection.py`. The test adds a film to a user's watchlist, calls `remove_from_watchlist()`, and verifies that the matching `WatchlistEntry` is no longer persisted in the database. I verified that all tests pass. 

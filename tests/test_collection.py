@@ -19,6 +19,7 @@ from services.collection_service import (
 )
 from services.watchlist_service import (
     add_to_watchlist,
+    remove_from_watchlist,
     get_watchlist,
     AlreadyInWatchlistError,
 )
@@ -117,6 +118,24 @@ def test_add_to_watchlist_nonexistent_film_raises(app, sample_user):
             user_id=sample_user, film_id=fake_film_id
         ).count()
         assert count == 0
+
+
+# ── Remove from watchlist ────────────────────────────────────────────────────
+
+def test_remove_from_watchlist_deletes_entry(app, sample_user, sample_film):
+    """
+    Removing a watchlist film should delete the WatchlistEntry from the database.
+    """
+    with app.app_context():
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        removed = remove_from_watchlist(user_id=sample_user, film_id=sample_film)
+
+        assert removed is True
+        in_db = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).first()
+        assert in_db is None
 
 
 # ── get_collection sort order ────────────────────────────────────────────────
