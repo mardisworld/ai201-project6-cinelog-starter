@@ -74,6 +74,8 @@ I did not have a good answer, so I asked it to consider the question and provide
 
 5. Finally, I had a tremendous amount of trouble with the Git Rebase and cleanup. I didn't really have a choice but to use AI to help me, because the commands that I tried were not working. When I was supposed to clean up the commits, the editor it brought up wouldn't let me type. I had to let Copilot do most of the heavy lifting, with my supervision. 
 
+# Addressing PR Comments
+
 ## Comment 1 — Rename
 
 **What I did:**
@@ -567,3 +569,38 @@ I added `remove_from_watchlist(user_id, film_id)` as a stretch feature in `watch
 I also added a `DELETE /watchlist/<user_id>/remove` endpoint in `routes/watchlist/watchlist.py`. It accepts a JSON body with `film_id`, calls `remove_from_watchlist()`, returns a success message when the entry is removed, and returns a 404 error if the film is not in that user's watchlist.
 
 I also wrote `test_remove_from_watchlist_deletes_entry` in `tests/test_collection.py`. The test adds a film to a user's watchlist, calls `remove_from_watchlist()`, and verifies that the matching `WatchlistEntry` is no longer persisted in the database. I verified that all tests pass. 
+
+## Stretch Feature: Added Unit Tests
+
+I added 9 more unit tests, based on Copilot's analysis of what would be most useful. 
+
+The main missing edge cases are around the watchlist-specific behavior and the route layer.
+
+Most useful tests to add next:
+
+1. add_to_watchlist happy path
+You test add_to_collection creates an entry, but not add_to_watchlist. Add a test that calls add_to_watchlist() with a real film and asserts a WatchlistEntry exists.
+
+2. add_to_watchlist duplicate case
+The service has AlreadyInWatchlistError, but there is no test proving it raises when the same user adds the same film twice or that only one row remains.
+
+3. remove_from_watchlist missing entry case
+You added the success case, but not the failure path. Add a test that calls remove_from_watchlist() for a film that is not on the watchlist and expects NotInWatchlistError.
+
+4. Route test for missing film_id on add
+POST /watchlist/<user_id>/add returns 400 if the body is missing film_id, but there is no test for that HTTP behavior.
+
+5. Route test for duplicate add
+The route catches AlreadyInWatchlistError and returns 409, but that status code is not tested.
+
+6. Route test for remove success
+DELETE /watchlist/<user_id>/remove should return 200 and remove the row. Right now only the service function is tested.
+
+7. Route test for remove missing entry
+DELETE /watchlist/<user_id>/remove should return 404 when the film is not in that user’s watchlist.
+
+8. Empty watchlist case
+get_watchlist(user_id) should return an empty list for a user with no watchlist entries.
+
+9. User isolation
+If user A has a film on their watchlist, user B’s watchlist should not include it. This is a good guard against accidentally querying by film_id only. get_watchlist() should not leak another user's watchlist entries.

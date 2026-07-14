@@ -22,6 +22,7 @@ from services.watchlist_service import (
     remove_from_watchlist,
     get_watchlist,
     AlreadyInWatchlistError,
+    NotInWatchlistError,
 )
 
 
@@ -79,6 +80,23 @@ def test_add_to_collection_creates_entry(app, sample_user, sample_film):
         assert in_db is not None
 
 
+def test_add_to_watchlist_creates_entry(app, sample_user, sample_film):
+    """
+    Adding a valid film should create a WatchlistEntry in the database.
+    """
+    with app.app_context():
+        entry = add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        assert entry is not None
+        assert entry.user_id == sample_user
+        assert entry.film_id == sample_film
+
+        in_db = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).first()
+        assert in_db is not None
+
+
 # ── Deduplication ────────────────────────────────────────────────────────────
 
 def test_add_to_collection_duplicate_raises(app, sample_user, sample_film):
@@ -97,6 +115,50 @@ def test_add_to_collection_duplicate_raises(app, sample_user, sample_film):
             user_id=sample_user, film_id=sample_film
         ).count()
         assert count == 1
+
+
+def test_add_to_watchlist_duplicate_raises(app, sample_user, sample_film):
+    """
+    Adding the same film twice should raise AlreadyInWatchlistError,
+    not silently create a duplicate entry.
+    """
+    with app.app_context():
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        with pytest.raises(AlreadyInWatchlistError):
+            add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        count = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).count()
+        assert count == 1
+
+
+def test_add_to_watchlist_route_missing_film_id_returns_400(app, sample_user):
+    """
+    POST /watchlist/<user_id>/add should reject requests without film_id.
+    """
+    client = app.test_client()
+
+    response = client.post(f"/watchlist/{sample_user}/add", json={})
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "film_id is required"}
+
+
+def test_add_to_watchlist_route_duplicate_returns_409(app, sample_user, sample_film):
+    """
+    POST /watchlist/<user_id>/add should return 409 for duplicate entries.
+    """
+    client = app.test_client()
+    payload = {"film_id": sample_film}
+
+    first_response = client.post(f"/watchlist/{sample_user}/add", json=payload)
+    second_response = client.post(f"/watchlist/{sample_user}/add", json=payload)
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 409
+    assert "already in this user's watchlist" in second_response.get_json()["error"]
 
 
 # ── Nonexistent film ─────────────────────────────────────────────────────────
@@ -136,6 +198,54 @@ def test_remove_from_watchlist_deletes_entry(app, sample_user, sample_film):
             user_id=sample_user, film_id=sample_film
         ).first()
         assert in_db is None
+
+
+def test_remove_from_watchlist_missing_entry_raises(app, sample_user, sample_film):
+    """
+    Removing a film that is not on the watchlist should raise NotInWatchlistError.
+    """
+    with app.app_context():
+        with pytest.raises(NotInWatchlistError):
+            remove_from_watchlist(user_id=sample_user, film_id=sample_film)
+
+
+def test_remove_from_watchlist_route_deletes_entry(app, sample_user, sample_film):
+    """
+    DELETE /watchlist/<user_id>/remove should remove an existing watchlist entry.
+    """
+    client = app.test_client()
+    with app.app_context():
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+    response = client.delete(
+        f"/watchlist/{sample_user}/remove",
+        json={"film_id": sample_film},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"message": "Removed from watchlist"}
+    with app.app_context():
+        in_db = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).first()
+        assert in_db is None
+
+
+def test_remove_from_watchlist_route_missing_entry_returns_404(
+    app, sample_user, sample_film
+):
+    """
+    DELETE /watchlist/<user_id>/remove should return 404 for a missing entry.
+    """
+    client = app.test_client()
+
+    response = client.delete(
+        f"/watchlist/{sample_user}/remove",
+        json={"film_id": sample_film},
+    )
+
+    assert response.status_code == 404
+    assert "is not in this user's watchlist" in response.get_json()["error"]
 
 
 # ── get_collection sort order ────────────────────────────────────────────────
@@ -200,3 +310,29 @@ def test_get_watchlist_returns_newest_first(app, sample_user):
         # Blade Runner was added later, so it should come first
         assert titles[0] == "Blade Runner"
         assert titles[1] == "Alien"
+
+
+def test_get_watchlist_empty_user_returns_empty_list(app, sample_user):
+    """
+    get_watchlist() should return an empty list when a user has no entries.
+    """
+    with app.app_context():
+        assert get_watchlist(sample_user) == []
+
+
+def test_get_watchlist_only_returns_entries_for_requested_user(app, sample_film):
+    """
+    get_watchlist() should not leak another user's watchlist entries.
+    """
+    with app.app_context():
+        user_a = User(username="usera", email="usera@example.com")
+        user_b = User(username="userb", email="userb@example.com")
+        db.session.add_all([user_a, user_b])
+        db.session.commit()
+
+        add_to_watchlist(user_id=user_a.id, film_id=sample_film)
+
+        assert get_watchlist(user_b.id) == []
+        user_a_watchlist = get_watchlist(user_a.id)
+        assert len(user_a_watchlist) == 1
+        assert user_a_watchlist[0]["id"] == sample_film
